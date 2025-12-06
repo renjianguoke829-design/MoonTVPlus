@@ -3766,8 +3766,8 @@ function PlayPageClient() {
                 totalEpisodes={totalEpisodes}
                 episodes_titles={detail?.episodes_titles || []}
                 value={currentEpisodeIndex + 1}
-                onChange={playSync.shouldDisableControls ? () => {} : handleEpisodeChange}
-                onSourceChange={playSync.shouldDisableControls ? () => {} : handleSourceChange}
+                onChange={playSync.shouldDisableControls ? () => { /* disabled */ } : handleEpisodeChange}
+                onSourceChange={playSync.shouldDisableControls ? () => { /* disabled */ } : handleSourceChange}
                 currentSource={currentSource}
                 currentId={currentId}
                 videoTitle={searchTitle || videoTitle}
