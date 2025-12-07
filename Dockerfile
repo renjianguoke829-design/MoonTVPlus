@@ -57,6 +57,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 
 # 安装 Socket.IO 相关依赖（standalone 模式不会自动包含）
+RUN rm /app/package.json
 RUN pnpm add socket.io@^4.8.1 socket.io-client@^4.8.1 --prod
 
 # 切换到非特权用户

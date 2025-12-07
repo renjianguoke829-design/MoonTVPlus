@@ -17,6 +17,28 @@ export default function ChatFloatingWindow() {
   const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageCountRef = useRef(0);
+  const isOpenRef = useRef(isOpen);
+  const isMinimizedRef = useRef(isMinimized);
+  const currentRoomIdRef = useRef<string | null>(null);
+
+  // 当房间变化时重置状态
+  useEffect(() => {
+    const roomId = watchRoom?.currentRoom?.id || null;
+    if (roomId !== currentRoomIdRef.current) {
+      console.log('[ChatFloatingWindow] Room changed:', currentRoomIdRef.current, '->', roomId);
+      currentRoomIdRef.current = roomId;
+      lastMessageCountRef.current = 0;
+      setUnreadCount(0);
+      setIsOpen(false);
+      setIsMinimized(false);
+    }
+  }, [watchRoom?.currentRoom?.id]);
+
+  // 同步窗口状态到 ref
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    isMinimizedRef.current = isMinimized;
+  }, [isOpen, isMinimized]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -27,18 +49,36 @@ export default function ChatFloatingWindow() {
 
   // 跟踪未读消息数量
   useEffect(() => {
-    if (!watchRoom?.chatMessages) return;
+    if (!watchRoom?.chatMessages) {
+      lastMessageCountRef.current = 0;
+      return;
+    }
 
     const currentCount = watchRoom.chatMessages.length;
+
+    // 如果消息数量减少了（比如切换房间），重置计数器和未读数
+    if (currentCount < lastMessageCountRef.current) {
+      lastMessageCountRef.current = currentCount;
+      setUnreadCount(0);
+      return;
+    }
+
     if (currentCount > lastMessageCountRef.current) {
       // 有新消息
-      if (!isOpen && !isMinimized) {
+      const newMessageCount = currentCount - lastMessageCountRef.current;
+      console.log('[ChatFloatingWindow] New messages:', newMessageCount, 'isOpen:', isOpenRef.current, 'isMinimized:', isMinimizedRef.current);
+
+      if (!isOpenRef.current && !isMinimizedRef.current) {
         // 只有在聊天窗口完全关闭时才增加未读计数
-        setUnreadCount(prev => prev + (currentCount - lastMessageCountRef.current));
+        setUnreadCount(prev => {
+          const newCount = prev + newMessageCount;
+          console.log('[ChatFloatingWindow] Updating unread count:', prev, '->', newCount);
+          return newCount;
+        });
       }
     }
     lastMessageCountRef.current = currentCount;
-  }, [watchRoom?.chatMessages, isOpen, isMinimized]);
+  }, [watchRoom?.chatMessages]);
 
   // 打开聊天窗口时清空未读计数
   useEffect(() => {
