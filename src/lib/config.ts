@@ -304,19 +304,29 @@ export async function getConfig(): Promise<AdminConfig> {
 
   // 读 db
   let adminConfig: AdminConfig | null = null;
+  let dbReadFailed = false;
   try {
     adminConfig = await db.getAdminConfig();
   } catch (e) {
     console.error('获取管理员配置失败:', e);
+    dbReadFailed = true;
   }
 
   // db 中无配置，执行一次初始化
   if (!adminConfig) {
-    adminConfig = await getInitConfig("");
+    if (dbReadFailed) {
+      // 数据库读取失败，使用默认配置但不保存，避免覆盖数据库
+      console.warn('数据库读取失败，使用临时默认配置（不会保存到数据库）');
+      adminConfig = await getInitConfig("");
+    } else {
+      // 数据库中确实没有配置，首次初始化并保存
+      console.log('首次初始化配置');
+      adminConfig = await getInitConfig("");
+      await db.saveAdminConfig(adminConfig);
+    }
   }
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
-  db.saveAdminConfig(cachedConfig);
   return cachedConfig;
 }
 
