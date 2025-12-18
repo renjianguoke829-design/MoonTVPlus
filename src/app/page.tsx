@@ -34,6 +34,7 @@ function HomeClient() {
   const [hotMovies, setHotMovies] = useState<DoubanItem[]>([]);
   const [hotTvShows, setHotTvShows] = useState<DoubanItem[]>([]);
   const [hotVarietyShows, setHotVarietyShows] = useState<DoubanItem[]>([]);
+  const [hotDuanju, setHotDuanju] = useState<any[]>([]);
   const [upcomingContent, setUpcomingContent] = useState<TMDBItem[]>([]);
   const [bangumiCalendarData, setBangumiCalendarData] = useState<
     BangumiCalendarData[]
@@ -77,7 +78,7 @@ function HomeClient() {
       try {
         setLoading(true);
 
-        // 并行获取热门电影、热门剧集、热门综艺和番剧日历
+        // 并行获取热门电影、热门剧集、热门综艺、番剧日历和热播短剧
         const [moviesData, tvShowsData, varietyShowsData, bangumiCalendarData] =
           await Promise.all([
             getDoubanCategories({
@@ -103,6 +104,19 @@ function HomeClient() {
         }
 
         setBangumiCalendarData(bangumiCalendarData);
+
+        // 获取热播短剧
+        try {
+          const duanjuResponse = await fetch('/api/duanju/recommends');
+          if (duanjuResponse.ok) {
+            const duanjuResult = await duanjuResponse.json();
+            if (duanjuResult.code === 200 && duanjuResult.data) {
+              setHotDuanju(duanjuResult.data);
+            }
+          }
+        } catch (error) {
+          console.error('获取热播短剧数据失败:', error);
+        }
 
         // 获取即将上映/播出内容（使用后端API缓存）
         try {
@@ -308,6 +322,43 @@ function HomeClient() {
                       ))}
                 </ScrollableRow>
               </section>
+
+              {/* 热播短剧 */}
+              {hotDuanju.length > 0 && (
+                <section className='mb-8'>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                      热播短剧
+                    </h2>
+                  </div>
+                  <ScrollableRow>
+                    {loading
+                      ? Array.from({ length: 8 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          >
+                            <div className='aspect-[2/3] bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2' />
+                            <div className='h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4' />
+                          </div>
+                        ))
+                      : hotDuanju.map((duanju) => (
+                          <div
+                            key={duanju.id + duanju.source}
+                            className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          >
+                            <VideoCard
+                              poster={duanju.poster}
+                              title={duanju.title}
+                              year={duanju.year}
+                              type='tv'
+                              from='douban'
+                            />
+                          </div>
+                        ))}
+                  </ScrollableRow>
+                </section>
+              )}
 
               {/* 每日新番放送 */}
               <section className='mb-8'>

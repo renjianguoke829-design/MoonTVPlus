@@ -91,6 +91,11 @@ export interface IStorage {
 
   // 数据清理相关
   clearAllData(): Promise<void>;
+
+  // 通用键值存储
+  getGlobalValue(key: string): Promise<string | null>;
+  setGlobalValue(key: string, value: string): Promise<void>;
+  deleteGlobalValue(key: string): Promise<void>;
 }
 
 // 搜索结果数据结构

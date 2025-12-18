@@ -495,4 +495,26 @@ export abstract class BaseRedisStorage implements IStorage {
       throw new Error('清空数据失败');
     }
   }
+
+  // ---------- 通用键值存储 ----------
+  private globalValueKey(key: string) {
+    return `global:${key}`;
+  }
+
+  async getGlobalValue(key: string): Promise<string | null> {
+    const val = await this.withRetry(() =>
+      this.client.get(this.globalValueKey(key))
+    );
+    return val ? ensureString(val) : null;
+  }
+
+  async setGlobalValue(key: string, value: string): Promise<void> {
+    await this.withRetry(() =>
+      this.client.set(this.globalValueKey(key), ensureString(value))
+    );
+  }
+
+  async deleteGlobalValue(key: string): Promise<void> {
+    await this.withRetry(() => this.client.del(this.globalValueKey(key)));
+  }
 }
