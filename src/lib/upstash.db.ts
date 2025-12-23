@@ -504,6 +504,7 @@ export class UpstashRedisStorage implements IStorage {
       role: 'owner' | 'admin' | 'user';
       banned: boolean;
       tags?: string[];
+      oidcSub?: string;
       enabledApis?: string[];
       created_at: number;
     }>;
@@ -528,6 +529,7 @@ export class UpstashRedisStorage implements IStorage {
           role: 'owner' as const,
           banned: ownerInfo.banned,
           tags: ownerInfo.tags,
+          oidcSub: ownerInfo.oidcSub,
           enabledApis: ownerInfo.enabledApis,
           created_at: ownerInfo.created_at,
         });
@@ -549,6 +551,7 @@ export class UpstashRedisStorage implements IStorage {
           role: userInfo.role,
           banned: userInfo.banned,
           tags: userInfo.tags,
+          oidcSub: userInfo.oidcSub,
           enabledApis: userInfo.enabledApis,
           created_at: userInfo.created_at,
         });

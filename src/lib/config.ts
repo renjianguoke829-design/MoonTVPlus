@@ -328,6 +328,31 @@ export async function getConfig(): Promise<AdminConfig> {
   }
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
+
+  // 自动迁移用户（如果配置中有用户且V2存储支持）
+  // 过滤掉站长后检查是否有需要迁移的用户
+  const nonOwnerUsers = adminConfig.UserConfig.Users.filter(
+    (u) => u.username !== process.env.USERNAME
+  );
+  if (!dbReadFailed && nonOwnerUsers.length > 0) {
+    try {
+      // 检查是否支持V2存储
+      const storage = (db as any).storage;
+      if (storage && typeof storage.createUserV2 === 'function') {
+        console.log('检测到配置中有用户，开始自动迁移...');
+        await db.migrateUsersFromConfig(adminConfig);
+        // 迁移完成后，清空配置中的用户列表并保存
+        adminConfig.UserConfig.Users = [];
+        await db.saveAdminConfig(adminConfig);
+        cachedConfig = adminConfig;
+        console.log('用户自动迁移完成');
+      }
+    } catch (error) {
+      console.error('自动迁移用户失败:', error);
+      // 不影响主流程，继续执行
+    }
+  }
+
   return cachedConfig;
 }
 

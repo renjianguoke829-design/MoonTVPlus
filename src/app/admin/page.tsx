@@ -427,6 +427,7 @@ interface UserConfigProps {
     role: 'owner' | 'admin' | 'user';
     banned: boolean;
     tags?: string[];
+    oidcSub?: string;
     enabledApis?: string[];
     created_at: number;
   }> | null;
@@ -1453,7 +1454,7 @@ const UserConfig = ({ config, role, refreshConfig, usersV2, userPage, userTotalP
                         <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
                           <div className='flex items-center gap-2'>
                             <span>{user.username}</span>
-                            {(user as any).oidcSub && (
+                            {user.oidcSub && (
                               <span className='px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'>
                                 OIDC
                               </span>

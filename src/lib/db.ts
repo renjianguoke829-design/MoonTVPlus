@@ -234,6 +234,7 @@ export class DbManager {
       role: 'owner' | 'admin' | 'user';
       banned: boolean;
       tags?: string[];
+      oidcSub?: string;
       enabledApis?: string[];
       created_at: number;
     }>;
