@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import NProgress from 'nprogress';
 
 // 创建全局钩子来拦截 router
@@ -9,6 +9,7 @@ let globalRouterRef: any = null;
 
 export default function TopProgressBar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const isNavigatingRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
@@ -34,7 +35,11 @@ export default function TopProgressBar() {
     router.push = function (...args: Parameters<typeof originalPush>) {
       const targetUrl = args[0] as string;
       const targetPathname = new URL(targetUrl, window.location.href).pathname;
-      if (targetPathname !== previousPathnameRef.current) {
+      const currentPathname = window.location.pathname;
+
+      // /play 和 /live 页面：参数变化也显示进度条
+      // 其他页面：仅路径变化时显示进度条
+      if (currentPathname === '/play' || currentPathname === '/live' || targetPathname !== previousPathnameRef.current) {
         isNavigatingRef.current = true;
         NProgress.start();
       }
@@ -45,7 +50,11 @@ export default function TopProgressBar() {
     router.replace = function (...args: Parameters<typeof originalReplace>) {
       const targetUrl = args[0] as string;
       const targetPathname = new URL(targetUrl, window.location.href).pathname;
-      if (targetPathname !== previousPathnameRef.current) {
+      const currentPathname = window.location.pathname;
+
+      // /play 和 /live 页面：参数变化也显示进度条
+      // 其他页面：仅路径变化时显示进度条
+      if (currentPathname === '/play' || currentPathname === '/live' || targetPathname !== previousPathnameRef.current) {
         isNavigatingRef.current = true;
         NProgress.start();
       }
@@ -121,7 +130,7 @@ export default function TopProgressBar() {
       isNavigatingRef.current = false;
     }
     previousPathnameRef.current = pathname;
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   return null;
 }
