@@ -60,6 +60,7 @@ async function getFinalUrl(url: string, maxRedirects = 5): Promise<string> {
 /**
  * GET /api/xiaoya/play?path=<path>
  * 获取小雅视频的播放链接（优先使用视频预览流，失败时降级到直连）
+ * path参数为base58编码的路径
  */
 export async function GET(request: NextRequest) {
   try {
@@ -69,11 +70,15 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const path = searchParams.get('path');
+    const encodedPath = searchParams.get('path');
 
-    if (!path) {
+    if (!encodedPath) {
       return NextResponse.json({ error: '缺少参数' }, { status: 400 });
     }
+
+    // 对path进行base58解码
+    const { base58Decode } = await import('@/lib/utils');
+    const path = base58Decode(encodedPath);
 
     const config = await getConfig();
     const xiaoyaConfig = config.XiaoyaConfig;

@@ -21,11 +21,14 @@ export interface XiaoyaMetadata {
  * 从文件夹名提取 TMDb ID 和年份
  * 格式: "标题 (年份) {tmdb-id}"
  */
-function parseFolderName(folderName: string): {
+function parseFolderName(folderName: string | undefined): {
   title?: string;
   year?: string;
   tmdbId?: number;
 } {
+  if (!folderName || typeof folderName !== 'string') {
+    return {};
+  }
   const match = folderName.match(/^(.+?)\s*\((\d{4})\)\s*\{tmdb-(\d+)\}$/);
   if (match) {
     return {
@@ -85,7 +88,18 @@ export async function getXiaoyaMetadata(
   tmdbProxy?: string
 ): Promise<XiaoyaMetadata> {
   const pathParts = videoPath.split('/').filter(Boolean);
-  const isInSeasonDir = /season\s*\d+/i.test(pathParts[pathParts.length - 2]);
+
+  // 验证路径格式
+  if (pathParts.length < 2) {
+    throw new Error(`无效的视频路径格式: ${videoPath}`);
+  }
+
+  const isInSeasonDir = pathParts.length >= 2 && /season\s*\d+/i.test(pathParts[pathParts.length - 2]);
+
+  // 验证路径长度是否足够
+  if (isInSeasonDir && pathParts.length < 3) {
+    throw new Error(`Season目录路径格式不正确: ${videoPath}`);
+  }
 
   // 确定元数据目录
   const metadataDir = isInSeasonDir
@@ -93,6 +107,11 @@ export async function getXiaoyaMetadata(
     : pathParts.slice(0, -1).join('/');
 
   const folderName = pathParts[isInSeasonDir ? pathParts.length - 3 : pathParts.length - 2];
+
+  // 验证 folderName 是否有效
+  if (!folderName) {
+    throw new Error(`无法从路径中提取文件夹名: ${videoPath}`);
+  }
 
   // 优先级 1: 从文件夹名提取 TMDb ID
   const folderInfo = parseFolderName(folderName);

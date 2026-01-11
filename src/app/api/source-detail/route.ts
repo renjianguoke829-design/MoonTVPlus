@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
 
       const { XiaoyaClient } = await import('@/lib/xiaoya.client');
       const { getXiaoyaMetadata, getXiaoyaEpisodes } = await import('@/lib/xiaoya-metadata');
+      const { base58Decode, base58Encode } = await import('@/lib/utils');
 
       const client = new XiaoyaClient(
         xiaoyaConfig.ServerURL,
@@ -148,27 +149,42 @@ export async function GET(request: NextRequest) {
         xiaoyaConfig.Token
       );
 
+      // 对id进行base58解码得到真实路径
+      let decodedPath: string;
+      try {
+        decodedPath = base58Decode(id);
+        console.log('[xiaoya] 解码路径:', decodedPath);
+      } catch (decodeError) {
+        console.error('[xiaoya] Base58解码失败:', decodeError);
+        throw new Error('无效的视频ID');
+      }
+
+      // 验证解码后的路径
+      if (!decodedPath || decodedPath.trim() === '') {
+        throw new Error('解码后的路径为空');
+      }
+
       // 获取元数据
       const metadata = await getXiaoyaMetadata(
         client,
-        id, // id 就是视频路径
+        decodedPath, // 使用解码后的路径
         config.SiteConfig.TMDBApiKey,
         config.SiteConfig.TMDBProxy
       );
 
       // 获取集数列表
-      const episodes = await getXiaoyaEpisodes(client, id);
+      const episodes = await getXiaoyaEpisodes(client, decodedPath);
 
       const result = {
         source: 'xiaoya',
         source_name: '小雅',
-        id: id,
+        id: id, // 保持编码后的id
         title: metadata.title,
         poster: metadata.poster || '',
         year: metadata.year || '',
         douban_id: 0,
         desc: metadata.plot || '',
-        episodes: episodes.map(ep => `/api/xiaoya/play?path=${encodeURIComponent(ep.path)}`),
+        episodes: episodes.map(ep => `/api/xiaoya/play?path=${encodeURIComponent(base58Encode(ep.path))}`),
         episodes_titles: episodes.map(ep => ep.title),
         subtitles: [],
         proxyMode: false,
@@ -176,6 +192,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(result);
     } catch (error) {
+      console.error('[xiaoya] 获取详情失败:', error);
       return NextResponse.json(
         { error: (error as Error).message },
         { status: 500 }

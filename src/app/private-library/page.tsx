@@ -8,6 +8,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
+import { base58Encode } from '@/lib/utils';
 
 type LibrarySourceType = 'openlist' | 'emby' | 'xiaoya' | `emby:${string}` | `emby_${string}`;
 
@@ -692,8 +693,9 @@ export default function PrivateLibraryPage() {
                         key={item.path}
                         onClick={() => {
                           if (isVideoFile) {
-                            // 视频文件：直接播放
-                            router.push(`/play?source=xiaoya&id=${encodeURIComponent(item.path)}&title=${encodeURIComponent(title)}`);
+                            // 视频文件：直接播放，对path进行base58编码
+                            const encodedPath = base58Encode(item.path);
+                            router.push(`/play?source=xiaoya&id=${encodeURIComponent(encodedPath)}&title=${encodeURIComponent(title)}`);
                           } else {
                             // 文件夹：进入浏览
                             setXiaoyaPath(item.path);
@@ -792,7 +794,11 @@ export default function PrivateLibraryPage() {
                     return (
                       <button
                         key={file.path}
-                        onClick={() => router.push(`/play?source=xiaoya&id=${encodeURIComponent(file.path)}&title=${encodeURIComponent(title)}`)}
+                        onClick={() => {
+                          // 对path进行base58编码
+                          const encodedPath = base58Encode(file.path);
+                          router.push(`/play?source=xiaoya&id=${encodeURIComponent(encodedPath)}&title=${encodeURIComponent(title)}`);
+                        }}
                         className='flex items-center gap-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left'
                       >
                         <svg className='w-5 h-5 text-green-600' fill='currentColor' viewBox='0 0 20 20'>
