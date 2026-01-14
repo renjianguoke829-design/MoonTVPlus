@@ -2781,6 +2781,7 @@ const OpenListConfigComponent = ({
   const [offlineDownloadPath, setOfflineDownloadPath] = useState('/');
   const [scanInterval, setScanInterval] = useState(0);
   const [scanMode, setScanMode] = useState<'torrent' | 'name' | 'hybrid'>('hybrid');
+  const [disableVideoPreview, setDisableVideoPreview] = useState(false);
   const [videos, setVideos] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
@@ -2801,6 +2802,7 @@ const OpenListConfigComponent = ({
       setOfflineDownloadPath(config.OpenListConfig.OfflineDownloadPath || '/');
       setScanInterval(config.OpenListConfig.ScanInterval || 0);
       setScanMode(config.OpenListConfig.ScanMode || 'hybrid');
+      setDisableVideoPreview(config.OpenListConfig.DisableVideoPreview || false);
     }
   }, [config]);
 
@@ -2842,6 +2844,7 @@ const OpenListConfigComponent = ({
             OfflineDownloadPath: offlineDownloadPath,
             ScanInterval: scanInterval,
             ScanMode: scanMode,
+            DisableVideoPreview: disableVideoPreview,
           }),
         });
 
@@ -3216,6 +3219,30 @@ const OpenListConfigComponent = ({
           <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
             混合模式：先用种子库匹配，失败后降级为名字匹配
           </p>
+        </div>
+
+        <div className='flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700'>
+          <div>
+            <h3 className='text-sm font-medium text-gray-900 dark:text-white'>
+              禁用预览视频
+            </h3>
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              开启后将直接返回直连链接，不使用视频预览流
+            </p>
+          </div>
+          <button
+            onClick={() => setDisableVideoPreview(!disableVideoPreview)}
+            disabled={!enabled}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              disableVideoPreview ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+            } ${!enabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                disableVideoPreview ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
 
         <div className='flex gap-3'>
@@ -8605,6 +8632,7 @@ const XiaoyaConfigComponent = ({
   const [token, setToken] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [disableVideoPreview, setDisableVideoPreview] = useState(false);
 
   useEffect(() => {
     if (config?.XiaoyaConfig) {
@@ -8613,6 +8641,7 @@ const XiaoyaConfigComponent = ({
       setToken(config.XiaoyaConfig.Token || '');
       setUsername(config.XiaoyaConfig.Username || '');
       setPassword(config.XiaoyaConfig.Password || '');
+      setDisableVideoPreview(config.XiaoyaConfig.DisableVideoPreview || false);
     }
   }, [config]);
 
@@ -8629,6 +8658,7 @@ const XiaoyaConfigComponent = ({
             Token: token,
             Username: username,
             Password: password,
+            DisableVideoPreview: disableVideoPreview,
           }),
         });
 
@@ -8739,6 +8769,29 @@ const XiaoyaConfigComponent = ({
             placeholder='可选，使用 Token 认证'
             className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
           />
+        </div>
+
+        <div className='flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700'>
+          <div>
+            <h3 className='text-sm font-medium text-gray-900 dark:text-white'>
+              禁用预览视频
+            </h3>
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              开启后将直接返回直连链接，不使用视频预览流
+            </p>
+          </div>
+          <button
+            onClick={() => setDisableVideoPreview(!disableVideoPreview)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              disableVideoPreview ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                disableVideoPreview ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
 
         <div className='grid grid-cols-2 gap-4'>
