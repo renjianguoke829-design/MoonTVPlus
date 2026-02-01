@@ -9,25 +9,17 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  /**
-   * 通过SMTP发送邮件
-   */
   static async sendViaSMTP(
     config: NonNullable<AdminConfig['EmailConfig']>['smtp'],
     options: EmailOptions
   ): Promise<void> {
     if (!config) throw new Error('SMTP配置不存在');
-
     const transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
       secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.password,
-      },
+      auth: { user: config.user, pass: config.password },
     });
-
     await transporter.sendMail({
       from: config.from,
       to: options.to,
@@ -36,15 +28,11 @@ export class EmailService {
     });
   }
 
-  /**
-   * 通过Resend API发送邮件
-   */
   static async sendViaResend(
     config: NonNullable<AdminConfig['EmailConfig']>['resend'],
     options: EmailOptions
   ): Promise<void> {
     if (!config) throw new Error('Resend配置不存在');
-
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -58,25 +46,20 @@ export class EmailService {
         html: options.html,
       }),
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Resend API错误: ${response.statusText} - ${errorText}`);
     }
   }
 
-  /**
-   * 统一发送接口
-   */
   static async send(
     emailConfig: AdminConfig['EmailConfig'],
     options: EmailOptions
   ): Promise<void> {
     if (!emailConfig || !emailConfig.enabled) {
-      console.log('邮件通知未启用，跳过发送');
+      console.log('邮件通知未启用');
       return;
     }
-
     if (emailConfig.provider === 'smtp' && emailConfig.smtp) {
       await this.sendViaSMTP(emailConfig.smtp, options);
     } else if (emailConfig.provider === 'resend' && emailConfig.resend) {
@@ -87,11 +70,10 @@ export class EmailService {
   }
 
   /**
-   * 系统自动发送邮件 (优先读库，没有则读环境变量)
+   * ✅ 系统自动发送邮件 (优先读库，没有则读环境变量)
    */
   static async sendSystemEmail(options: EmailOptions): Promise<void> {
     try {
-      // 1. 尝试读取数据库配置
       const dbConfig = await getConfig();
       const emailConfig = dbConfig.SiteConfig?.EmailConfig || (dbConfig as any).EmailConfig;
 
@@ -100,9 +82,8 @@ export class EmailService {
         return;
       }
 
-      // 2. 尝试读取环境变量 Resend
       if (process.env.RESEND_API_KEY && process.env.RESEND_FROM) {
-        console.log('[System] 使用环境变量 Resend 发送邮件');
+        console.log('[System] 使用环境变量 Resend 发送');
         await this.sendViaResend({
           apiKey: process.env.RESEND_API_KEY,
           from: process.env.RESEND_FROM,
@@ -110,9 +91,7 @@ export class EmailService {
         return;
       }
 
-      // 3. 尝试读取环境变量 SMTP
       if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-        console.log('[System] 使用环境变量 SMTP 发送邮件');
         await this.sendViaSMTP({
           host: process.env.SMTP_HOST,
           port: parseInt(process.env.SMTP_PORT || '465'),
@@ -124,7 +103,7 @@ export class EmailService {
         return;
       }
 
-      throw new Error('未配置邮件服务 (请在后台或环境变量配置)');
+      throw new Error('未配置邮件服务');
     } catch (error) {
       console.error('系统邮件发送失败:', error);
       throw error;
