@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { getConfig } from './config'; // 引入配置读取
+import { getConfig } from './config';
 import type { AdminConfig } from './admin.types';
 
 export interface EmailOptions {
@@ -66,7 +66,7 @@ export class EmailService {
   }
 
   /**
-   * 统一发送接口 (原有)
+   * 统一发送接口
    */
   static async send(
     emailConfig: AdminConfig['EmailConfig'],
@@ -87,11 +87,11 @@ export class EmailService {
   }
 
   /**
-   * ✅ 新增：系统自动发送邮件 (优先读库，没有则读环境变量)
+   * 系统自动发送邮件 (优先读库，没有则读环境变量)
    */
   static async sendSystemEmail(options: EmailOptions): Promise<void> {
     try {
-      // 1. 尝试读取数据库里的配置
+      // 1. 尝试读取数据库配置
       const dbConfig = await getConfig();
       const emailConfig = dbConfig.SiteConfig?.EmailConfig || (dbConfig as any).EmailConfig;
 
@@ -100,7 +100,7 @@ export class EmailService {
         return;
       }
 
-      // 2. 数据库没配，尝试使用环境变量里的 Resend (Vercel 推荐)
+      // 2. 尝试读取环境变量 Resend
       if (process.env.RESEND_API_KEY && process.env.RESEND_FROM) {
         console.log('[System] 使用环境变量 Resend 发送邮件');
         await this.sendViaResend({
@@ -110,7 +110,7 @@ export class EmailService {
         return;
       }
 
-      // 3. 尝试环境变量 SMTP
+      // 3. 尝试读取环境变量 SMTP
       if (process.env.SMTP_HOST && process.env.SMTP_USER) {
         console.log('[System] 使用环境变量 SMTP 发送邮件');
         await this.sendViaSMTP({
@@ -124,7 +124,7 @@ export class EmailService {
         return;
       }
 
-      throw new Error('未配置邮件服务 (请在 Vercel 环境变量配置 RESEND_API_KEY)');
+      throw new Error('未配置邮件服务 (请在后台或环境变量配置)');
     } catch (error) {
       console.error('系统邮件发送失败:', error);
       throw error;
