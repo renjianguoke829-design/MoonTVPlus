@@ -1,13 +1,16 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { AdminConfig } from './admin.types';
-// ❌ 已删除不兼容 Edge 环境的普通 Redis/Kvrocks 引用
+// ❌【关键修改】删除了 RedisStorage 和 KvrocksStorage 的引用，防止污染 Edge 环境
 import { DanmakuFilterConfig, Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
+// 强制使用 Upstash，忽略环境变量中的其他设置（为了安全）
+const STORAGE_TYPE = 'upstash';
+
 function createStorage(): IStorage {
-  // ✅ 强制只返回 Upstash 实例
-  // 这样 Vercel 构建时就不会去打包那些不兼容的 Redis 库
+  // ✅ 直接返回 Upstash 实例，不包含任何 switch case
+  // 这样打包工具就不会把不兼容的代码卷进来了
   return new UpstashRedisStorage();
 }
 
@@ -31,7 +34,7 @@ export class DbManager {
     this.storage = getStorage();
   }
 
-  // ================= 基础功能区域 =================
+  // ================= 基础播放记录与收藏 =================
 
   async getPlayRecord(userName: string, source: string, id: string): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
@@ -76,6 +79,8 @@ export class DbManager {
     return favorite !== null;
   }
 
+  // ================= 用户认证基础 =================
+
   async verifyUser(userName: string, password: string): Promise<boolean> {
     return this.storage.verifyUser(userName, password);
   }
@@ -92,7 +97,7 @@ export class DbManager {
     await this.storage.deleteUser(userName);
   }
 
-  // ================= V2 用户系统区域 =================
+  // ================= V2 高级用户系统 =================
 
   async createUserV2(userName: string, password: string, role: 'owner' | 'admin' | 'user' = 'user', tags?: string[], oidcSub?: string, enabledApis?: string[]): Promise<void> {
     if (typeof (this.storage as any).createUserV2 === 'function') {
@@ -153,7 +158,7 @@ export class DbManager {
     }
   }
 
-  // ================= 迁移与配置区域 =================
+  // ================= 迁移与配置杂项 =================
 
   async migratePlayRecords(userName: string): Promise<void> {
     if (typeof (this.storage as any).migratePlayRecords === 'function') await (this.storage as any).migratePlayRecords(userName);
@@ -237,11 +242,11 @@ export class DbManager {
     if (typeof (this.storage as any).deleteGlobalValue === 'function') await (this.storage as any).deleteGlobalValue(key);
   }
 
-  // ================= 邮箱与找回密码 (完全可用版) =================
+  // ================= 邮箱与找回密码 (新功能) =================
 
   async bindEmail(userName: string, email: string): Promise<void> {
     await this.updateUserInfoV2(userName, { email } as any);
-    // 直接操作 client，避开类型推断
+    // 直接使用 client 存索引，避开类型检查
     const client = (this.storage as any).client;
     if (client) await client.set(`email_index:${email}`, userName);
   }
@@ -250,7 +255,7 @@ export class DbManager {
     const client = (this.storage as any).client;
     if (client) return await client.get(`email_index:${email}`);
     
-    // 兜底逻辑
+    // 兜底逻辑：遍历查找
     try {
       const { users } = await this.getUserListV2(0, 1000); 
       const user = users.find((u: any) => u.email === email);
@@ -268,6 +273,7 @@ export class DbManager {
   async verifyResetToken(token: string): Promise<string | null> {
     const client = (this.storage as any).client;
     if (client) return await client.get(`reset_token:${token}`);
+    return null;
   }
 
   async deleteResetToken(token: string): Promise<void> {
