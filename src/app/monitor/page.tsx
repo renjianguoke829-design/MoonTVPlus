@@ -28,7 +28,7 @@ export default function MonitorPage() {
         {/* 🔴 请将下面的 src 换成你自己的 Umami 分享链接 (Share URL) */}
         {/* 如果还没有 Umami，去 cloud.umami.is 注册一个，把它的 Share URL 填在这里 */}
         <iframe 
-          src="https://cloud.umami.is/share/你的代码/你的网站名?theme=dark" 
+          src="https://cloud.umami.is/share/FN0oypoVAfRHisad" 
           className="w-full h-full relative z-10"
           frameBorder="0"
           allowFullScreen
