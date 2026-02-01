@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-
+import { getConfig } from './config'; // 引入配置读取
 import type { AdminConfig } from './admin.types';
 
 export interface EmailOptions {
@@ -16,9 +16,7 @@ export class EmailService {
     config: NonNullable<AdminConfig['EmailConfig']>['smtp'],
     options: EmailOptions
   ): Promise<void> {
-    if (!config) {
-      throw new Error('SMTP配置不存在');
-    }
+    if (!config) throw new Error('SMTP配置不存在');
 
     const transporter = nodemailer.createTransport({
       host: config.host,
@@ -45,9 +43,7 @@ export class EmailService {
     config: NonNullable<AdminConfig['EmailConfig']>['resend'],
     options: EmailOptions
   ): Promise<void> {
-    if (!config) {
-      throw new Error('Resend配置不存在');
-    }
+    if (!config) throw new Error('Resend配置不存在');
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -70,7 +66,7 @@ export class EmailService {
   }
 
   /**
-   * 统一发送接口
+   * 统一发送接口 (原有)
    */
   static async send(
     emailConfig: AdminConfig['EmailConfig'],
@@ -81,103 +77,57 @@ export class EmailService {
       return;
     }
 
-    try {
-      if (emailConfig.provider === 'smtp' && emailConfig.smtp) {
-        await this.sendViaSMTP(emailConfig.smtp, options);
-        console.log(`邮件已通过SMTP发送至: ${options.to}`);
-      } else if (emailConfig.provider === 'resend' && emailConfig.resend) {
-        await this.sendViaResend(emailConfig.resend, options);
-        console.log(`邮件已通过Resend发送至: ${options.to}`);
-      } else {
-        throw new Error('邮件配置不完整');
-      }
-    } catch (error) {
-      console.error('邮件发送失败:', error);
-      throw error;
+    if (emailConfig.provider === 'smtp' && emailConfig.smtp) {
+      await this.sendViaSMTP(emailConfig.smtp, options);
+    } else if (emailConfig.provider === 'resend' && emailConfig.resend) {
+      await this.sendViaResend(emailConfig.resend, options);
+    } else {
+      throw new Error('邮件配置不完整');
     }
   }
 
   /**
-   * 发送测试邮件
+   * ✅ 新增：系统自动发送邮件 (优先读库，没有则读环境变量)
    */
-  static async sendTestEmail(
-    emailConfig: AdminConfig['EmailConfig'],
-    toEmail: string,
-    siteName?: string
-  ): Promise<void> {
-    const displayName = siteName || 'MoonTVPlus';
-    await this.send(emailConfig, {
-      to: toEmail,
-      subject: `测试邮件 - ${displayName}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              line-height: 1.6;
-              margin: 0;
-              padding: 0;
-              background-color: #f5f5f5;
-            }
-            .container {
-              max-width: 600px;
-              margin: 20px auto;
-              background: white;
-              border-radius: 10px;
-              overflow: hidden;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .header {
-              background: white;
-              color: #333;
-              padding: 30px 20px;
-              text-align: center;
-              border-bottom: 2px solid #f0f0f0;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 24px;
-              font-weight: 600;
-            }
-            .content {
-              padding: 30px 20px;
-              background: white;
-            }
-            .content p {
-              color: #333;
-              margin: 10px 0;
-            }
-            .footer {
-              padding: 20px;
-              text-align: center;
-              color: #999;
-              font-size: 12px;
-              background: white;
-              border-top: 1px solid #eee;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>📧 测试邮件</h1>
-            </div>
-            <div class="content">
-              <p>这是一封来自 ${displayName} 的测试邮件。</p>
-              <p>如果您收到这封邮件，说明邮件配置正确！</p>
-              <p style="color: #666;">发送时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
-            </div>
-            <div class="footer">
-              <p>此邮件由 ${displayName} 自动发送</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    });
+  static async sendSystemEmail(options: EmailOptions): Promise<void> {
+    try {
+      // 1. 尝试读取数据库里的配置
+      const dbConfig = await getConfig();
+      const emailConfig = dbConfig.SiteConfig?.EmailConfig || (dbConfig as any).EmailConfig;
+
+      if (emailConfig && emailConfig.enabled) {
+        await this.send(emailConfig, options);
+        return;
+      }
+
+      // 2. 数据库没配，尝试使用环境变量里的 Resend (Vercel 推荐)
+      if (process.env.RESEND_API_KEY && process.env.RESEND_FROM) {
+        console.log('[System] 使用环境变量 Resend 发送邮件');
+        await this.sendViaResend({
+          apiKey: process.env.RESEND_API_KEY,
+          from: process.env.RESEND_FROM,
+        }, options);
+        return;
+      }
+
+      // 3. 尝试环境变量 SMTP
+      if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+        console.log('[System] 使用环境变量 SMTP 发送邮件');
+        await this.sendViaSMTP({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || '465'),
+          secure: true,
+          user: process.env.SMTP_USER,
+          password: process.env.SMTP_PASS || '',
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        }, options);
+        return;
+      }
+
+      throw new Error('未配置邮件服务 (请在 Vercel 环境变量配置 RESEND_API_KEY)');
+    } catch (error) {
+      console.error('系统邮件发送失败:', error);
+      throw error;
+    }
   }
 }
