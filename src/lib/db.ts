@@ -1,78 +1,20 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { AdminConfig } from './admin.types';
-import { KvrocksStorage } from './kvrocks.db';
 import { RedisStorage } from './redis.db';
 import { DanmakuFilterConfig, Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
-// 获取全局存储类型设置
-const STORAGE_TYPE =
-  (process.env.NEXT_PUBLIC_STORAGE_TYPE as
-    | 'localstorage'
-    | 'redis'
-    | 'upstash'
-    | 'kvrocks'
-    | 'd1'
-    | undefined) || 'localstorage';
+// 强制获取存储类型
+const STORAGE_TYPE = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'upstash';
 
 function createStorage(): IStorage {
-  switch (STORAGE_TYPE) {
-    case 'redis':
-      return new RedisStorage();
-    case 'upstash':
-      return new UpstashRedisStorage();
-    case 'kvrocks':
-      return new KvrocksStorage();
-    case 'd1':
-      if (typeof window !== 'undefined') {
-        throw new Error('D1Storage can only be used on the server side');
-      }
-      const adapter = getD1Adapter();
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { D1Storage } = require('./d1.db');
-      return new D1Storage(adapter);
-    case 'localstorage':
-    default:
-      return null as unknown as IStorage;
+  // 移除所有导致报错的 SQLite/D1 代码，只保留 Redis/Upstash
+  if (STORAGE_TYPE === 'redis') {
+    return new RedisStorage();
   }
-}
-
-function getD1Adapter(): any {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { CloudflareD1Adapter, SQLiteAdapter } = require('./d1-adapter');
-  const isCloudflare = process.env.CF_PAGES === '1' || process.env.BUILD_TARGET === 'cloudflare';
-
-  if (isCloudflare) {
-    let cachedAdapter: any = null;
-    return new Proxy({}, {
-      get(target, prop) {
-        if (!cachedAdapter) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const { getCloudflareContext } = require('@opennextjs/cloudflare');
-            const { env } = getCloudflareContext();
-            if (!env.DB) throw new Error('D1 binding not found');
-            console.log('Using Cloudflare D1 database');
-            cachedAdapter = new CloudflareD1Adapter(env.DB);
-          } catch (error) {
-            console.error('Failed to initialize Cloudflare D1:', error);
-            throw error;
-          }
-        }
-        return cachedAdapter[prop];
-      }
-    });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Database = require('better-sqlite3');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const path = require('path');
-  const dbPath = path.join(process.cwd(), '.data', 'moontv.db');
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  return new SQLiteAdapter(db);
+  // 默认返回 Upstash (这也是你正在用的)
+  return new UpstashRedisStorage();
 }
 
 let storageInstance: IStorage | null = null;
@@ -94,6 +36,8 @@ export class DbManager {
   constructor() {
     this.storage = getStorage();
   }
+
+  // ================= 基础功能区域 =================
 
   async getPlayRecord(userName: string, source: string, id: string): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
@@ -154,6 +98,8 @@ export class DbManager {
     await this.storage.deleteUser(userName);
   }
 
+  // ================= V2 用户系统区域 =================
+
   async createUserV2(userName: string, password: string, role: 'owner' | 'admin' | 'user' = 'user', tags?: string[], oidcSub?: string, enabledApis?: string[]): Promise<void> {
     if (typeof (this.storage as any).createUserV2 === 'function') {
       await (this.storage as any).createUserV2(userName, password, role, tags, oidcSub, enabledApis);
@@ -212,6 +158,8 @@ export class DbManager {
       await (this.storage as any).deleteUserV2(userName);
     }
   }
+
+  // ================= 迁移与配置区域 =================
 
   async migratePlayRecords(userName: string): Promise<void> {
     if (typeof (this.storage as any).migratePlayRecords === 'function') await (this.storage as any).migratePlayRecords(userName);
@@ -295,13 +243,11 @@ export class DbManager {
     if (typeof (this.storage as any).deleteGlobalValue === 'function') await (this.storage as any).deleteGlobalValue(key);
   }
 
-  // ================= 邮箱与找回密码 (完全修复版) =================
+  // ================= 邮箱与找回密码 (这是你要的新功能) =================
 
   async bindEmail(userName: string, email: string): Promise<void> {
-    // 1. 更新用户信息
     await this.updateUserInfoV2(userName, { email } as any);
-    
-    // 2. 建立索引 (改用全局 STORAGE_TYPE 判断，避开类型报错)
+    // 强制使用 Upstash 的客户端来存索引，避开类型检查问题
     if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) await client.set(`email_index:${email}`, userName);
@@ -309,13 +255,10 @@ export class DbManager {
   }
 
   async getUserByEmail(email: string): Promise<string | null> {
-    // 1. 尝试从索引查
     if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) return await client.get(`email_index:${email}`);
     }
-    
-    // 2. 兜底查找
     try {
       const { users } = await this.getUserListV2(0, 1000); 
       const user = users.find((u: any) => u.email === email);
