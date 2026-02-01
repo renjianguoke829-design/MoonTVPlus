@@ -2,6 +2,7 @@
 
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script'; // ✅ 新增：引入 Script 组件
 
 import './globals.css';
 
@@ -216,6 +217,15 @@ export default async function RootLayout({
       <body
         className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-black dark:text-gray-200`}
       >
+        {/* ✅ 新增：Umami 监控脚本 */}
+        {/* 这里的 data-website-id 会优先读取 Vercel 环境变量，如果没配则使用后面那个字符串 */}
+        <Script
+          defer
+          src="https://cloud.umami.is/script.js"
+          data-website-id={process.env.NEXT_PUBLIC_UMAMI_ID || "你的-UMAMI-ID-请替换"}
+          strategy="afterInteractive"
+        />
+
         <ThemeProvider
           attribute='class'
           defaultTheme='system'
