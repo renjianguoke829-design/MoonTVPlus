@@ -1,19 +1,13 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { AdminConfig } from './admin.types';
-import { RedisStorage } from './redis.db';
+// ❌ 已删除不兼容 Edge 环境的普通 Redis/Kvrocks 引用
 import { DanmakuFilterConfig, Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
-// 强制获取存储类型
-const STORAGE_TYPE = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'upstash';
-
 function createStorage(): IStorage {
-  // 移除所有导致报错的 SQLite/D1 代码，只保留 Redis/Upstash
-  if (STORAGE_TYPE === 'redis') {
-    return new RedisStorage();
-  }
-  // 默认返回 Upstash (这也是你正在用的)
+  // ✅ 强制只返回 Upstash 实例
+  // 这样 Vercel 构建时就不会去打包那些不兼容的 Redis 库
   return new UpstashRedisStorage();
 }
 
@@ -243,22 +237,20 @@ export class DbManager {
     if (typeof (this.storage as any).deleteGlobalValue === 'function') await (this.storage as any).deleteGlobalValue(key);
   }
 
-  // ================= 邮箱与找回密码 (这是你要的新功能) =================
+  // ================= 邮箱与找回密码 (完全可用版) =================
 
   async bindEmail(userName: string, email: string): Promise<void> {
     await this.updateUserInfoV2(userName, { email } as any);
-    // 强制使用 Upstash 的客户端来存索引，避开类型检查问题
-    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
-      const client = (this.storage as any).client;
-      if (client) await client.set(`email_index:${email}`, userName);
-    }
+    // 直接操作 client，避开类型推断
+    const client = (this.storage as any).client;
+    if (client) await client.set(`email_index:${email}`, userName);
   }
 
   async getUserByEmail(email: string): Promise<string | null> {
-    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
-      const client = (this.storage as any).client;
-      if (client) return await client.get(`email_index:${email}`);
-    }
+    const client = (this.storage as any).client;
+    if (client) return await client.get(`email_index:${email}`);
+    
+    // 兜底逻辑
     try {
       const { users } = await this.getUserListV2(0, 1000); 
       const user = users.find((u: any) => u.email === email);
@@ -269,25 +261,18 @@ export class DbManager {
   }
 
   async setResetToken(token: string, userName: string): Promise<void> {
-    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
-      const client = (this.storage as any).client;
-      if (client) await client.set(`reset_token:${token}`, userName, { ex: 900 });
-    }
+    const client = (this.storage as any).client;
+    if (client) await client.set(`reset_token:${token}`, userName, { ex: 900 });
   }
 
   async verifyResetToken(token: string): Promise<string | null> {
-    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
-      const client = (this.storage as any).client;
-      if (client) return await client.get(`reset_token:${token}`);
-    }
-    return null;
+    const client = (this.storage as any).client;
+    if (client) return await client.get(`reset_token:${token}`);
   }
 
   async deleteResetToken(token: string): Promise<void> {
-    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
-      const client = (this.storage as any).client;
-      if (client) await client.del(`reset_token:${token}`);
-    }
+    const client = (this.storage as any).client;
+    if (client) await client.del(`reset_token:${token}`);
   }
 }
 
