@@ -6,6 +6,7 @@ import { RedisStorage } from './redis.db';
 import { DanmakuFilterConfig, Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
+// 获取全局存储类型设置
 const STORAGE_TYPE =
   (process.env.NEXT_PUBLIC_STORAGE_TYPE as
     | 'localstorage'
@@ -294,14 +295,14 @@ export class DbManager {
     if (typeof (this.storage as any).deleteGlobalValue === 'function') await (this.storage as any).deleteGlobalValue(key);
   }
 
-  // ================= 邮箱与找回密码 (新增功能) =================
+  // ================= 邮箱与找回密码 (完全修复版) =================
 
   async bindEmail(userName: string, email: string): Promise<void> {
     // 1. 更新用户信息
     await this.updateUserInfoV2(userName, { email } as any);
     
-    // 2. 建立索引 (仅支持 Redis/Upstash)
-    if (this.storage.type === 'upstash' || this.storage.type === 'redis') {
+    // 2. 建立索引 (改用全局 STORAGE_TYPE 判断，避开类型报错)
+    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) await client.set(`email_index:${email}`, userName);
     }
@@ -309,12 +310,12 @@ export class DbManager {
 
   async getUserByEmail(email: string): Promise<string | null> {
     // 1. 尝试从索引查
-    if (this.storage.type === 'upstash' || this.storage.type === 'redis') {
+    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) return await client.get(`email_index:${email}`);
     }
     
-    // 2. 兜底：如果不是 Redis，或者索引不存在，遍历查找 (兼容性)
+    // 2. 兜底查找
     try {
       const { users } = await this.getUserListV2(0, 1000); 
       const user = users.find((u: any) => u.email === email);
@@ -325,14 +326,14 @@ export class DbManager {
   }
 
   async setResetToken(token: string, userName: string): Promise<void> {
-    if (this.storage.type === 'upstash' || this.storage.type === 'redis') {
+    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) await client.set(`reset_token:${token}`, userName, { ex: 900 });
     }
   }
 
   async verifyResetToken(token: string): Promise<string | null> {
-    if (this.storage.type === 'upstash' || this.storage.type === 'redis') {
+    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) return await client.get(`reset_token:${token}`);
     }
@@ -340,7 +341,7 @@ export class DbManager {
   }
 
   async deleteResetToken(token: string): Promise<void> {
-    if (this.storage.type === 'upstash' || this.storage.type === 'redis') {
+    if (STORAGE_TYPE === 'upstash' || STORAGE_TYPE === 'redis') {
       const client = (this.storage as any).client;
       if (client) await client.del(`reset_token:${token}`);
     }
