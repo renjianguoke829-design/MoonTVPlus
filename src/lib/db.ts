@@ -1,7 +1,7 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { AdminConfig } from './admin.types';
-// ❌ 保持移除 Redis/Kvrocks 引用
+// ❌ 保持移除不兼容的库，这是 Edge 环境能跑的前提
 import { DanmakuFilterConfig, Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
@@ -32,7 +32,7 @@ export class DbManager {
     this.storage = getStorage();
   }
 
-  // ================= 核心播放记录与收藏 =================
+  // ================= 核心播放业务 =================
 
   async getPlayRecord(userName: string, source: string, id: string): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
@@ -52,6 +52,8 @@ export class DbManager {
     const key = generateStorageKey(source, id);
     await this.storage.deletePlayRecord(userName, key);
   }
+
+  // ================= 收藏业务 =================
 
   async getFavorite(userName: string, source: string, id: string): Promise<Favorite | null> {
     const key = generateStorageKey(source, id);
@@ -77,7 +79,7 @@ export class DbManager {
     return favorite !== null;
   }
 
-  // ================= 用户认证 (旧版 & V2) =================
+  // ================= 用户系统 (V1 & V2) =================
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
     return this.storage.verifyUser(userName, password);
@@ -95,6 +97,7 @@ export class DbManager {
     await this.storage.deleteUser(userName);
   }
 
+  // V2 User Methods
   async createUserV2(userName: string, password: string, role: 'owner' | 'admin' | 'user' = 'user', tags?: string[], oidcSub?: string, enabledApis?: string[]): Promise<void> {
     if (typeof (this.storage as any).createUserV2 === 'function') {
       await (this.storage as any).createUserV2(userName, password, role, tags, oidcSub, enabledApis);
@@ -154,25 +157,16 @@ export class DbManager {
     }
   }
 
-  // ✅✅✅ 【关键修复】补全原版缺失的管理方法 ✅✅✅
-
-  // 1. 补全 getAllUsers (解决报错 Type error: Property 'getAllUsers' does not exist)
+  // ✅✅✅ 这里的 getAllUsers 就是刚才报错缺少的那个！一定要有！ ✅✅✅
   async getAllUsers(): Promise<string[]> {
-    // 优先尝试调用 V2 接口
+    // 如果底层存储支持 V2，就调用 V2
     if (typeof (this.storage as any).getAllUsers === 'function') {
       return (this.storage as any).getAllUsers();
     }
-    // 如果是 Upstash，尝试用 keys 扫描（模拟实现）
-    if (this.storage instanceof UpstashRedisStorage) {
-      // 注意：Upstash 不建议用 keys，但在小规模用户下可以暂时兜底
-      // 这里为了安全起见，我们直接返回空数组或者抛出未实现，
-      // 但为了通过编译，我们返回空数组，因为管理后台通常用 getUserListV2
-      return []; 
-    }
+    // 否则返回空，保证不报错
     return [];
   }
 
-  // 2. 补全 getUsersByTag
   async getUsersByTag(tagName: string): Promise<string[]> {
     if (typeof (this.storage as any).getUsersByTag === 'function') {
       return (this.storage as any).getUsersByTag(tagName);
@@ -180,26 +174,13 @@ export class DbManager {
     return [];
   }
 
-  // 3. 补全 migrateUsersFromConfig
   async migrateUsersFromConfig(adminConfig: AdminConfig): Promise<void> {
     if (typeof (this.storage as any).migrateUsersFromConfig === 'function') {
       await (this.storage as any).migrateUsersFromConfig(adminConfig);
     }
   }
 
-  // ================= 迁移、历史与配置 =================
-
-  async migratePlayRecords(userName: string): Promise<void> {
-    if (typeof (this.storage as any).migratePlayRecords === 'function') await (this.storage as any).migratePlayRecords(userName);
-  }
-
-  async migrateFavorites(userName: string): Promise<void> {
-    if (typeof (this.storage as any).migrateFavorites === 'function') await (this.storage as any).migrateFavorites(userName);
-  }
-
-  async migrateSkipConfigs(userName: string): Promise<void> {
-    if (typeof (this.storage as any).migrateSkipConfigs === 'function') await (this.storage as any).migrateSkipConfigs(userName);
-  }
+  // ================= 搜索历史与配置 =================
 
   async getSearchHistory(userName: string): Promise<string[]> {
     return this.storage.getSearchHistory(userName);
@@ -253,6 +234,20 @@ export class DbManager {
     if (typeof (this.storage as any).deleteDanmakuFilterConfig === 'function') await (this.storage as any).deleteDanmakuFilterConfig(userName);
   }
 
+  // ================= 数据迁移与杂项 =================
+
+  async migratePlayRecords(userName: string): Promise<void> {
+    if (typeof (this.storage as any).migratePlayRecords === 'function') await (this.storage as any).migratePlayRecords(userName);
+  }
+
+  async migrateFavorites(userName: string): Promise<void> {
+    if (typeof (this.storage as any).migrateFavorites === 'function') await (this.storage as any).migrateFavorites(userName);
+  }
+
+  async migrateSkipConfigs(userName: string): Promise<void> {
+    if (typeof (this.storage as any).migrateSkipConfigs === 'function') await (this.storage as any).migrateSkipConfigs(userName);
+  }
+
   async clearAllData(): Promise<void> {
     if (typeof (this.storage as any).clearAllData === 'function') await (this.storage as any).clearAllData();
   }
@@ -270,7 +265,7 @@ export class DbManager {
     if (typeof (this.storage as any).deleteGlobalValue === 'function') await (this.storage as any).deleteGlobalValue(key);
   }
 
-  // ================= 邮箱与找回密码 (新功能) =================
+  // ================= 找回密码与邮箱绑定 (新功能) =================
 
   async bindEmail(userName: string, email: string): Promise<void> {
     await this.updateUserInfoV2(userName, { email } as any);
@@ -282,7 +277,6 @@ export class DbManager {
     const client = (this.storage as any).client;
     if (client) return await client.get(`email_index:${email}`);
     
-    // 兜底逻辑
     try {
       const { users } = await this.getUserListV2(0, 1000); 
       const user = users.find((u: any) => u.email === email);
