@@ -1,90 +1,56 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { cookies } from 'next/headers';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getStorage } from '@/lib/db';
-
-export const runtime = 'nodejs';
-
-/**
- * GET - 获取用户邮箱设置
- */
-export async function GET(request: NextRequest) {
-  const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+// 辅助函数：从 Cookie 获取当前用户
+function getSessionUser() {
+  const cookieStore = cookies();
+  const auth = cookieStore.get('auth'); // 注意：这里假设 Cookie 名为 auth
+  if (!auth) return null;
   try {
-    const storage = getStorage();
-    const username = authInfo.username;
-
-    const email = storage.getUserEmail
-      ? await storage.getUserEmail(username)
-      : null;
-
-    const emailNotifications = storage.getEmailNotificationPreference
-      ? await storage.getEmailNotificationPreference(username)
-      : false;
-
-    return NextResponse.json({
-      email: email || '',
-      emailNotifications,
-    });
-  } catch (error) {
-    console.error('获取用户邮箱设置失败:', error);
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    const data = JSON.parse(auth.value);
+    return data.username ? { username: data.username } : null;
+  } catch {
+    return null;
   }
 }
 
-/**
- * POST - 保存用户邮箱设置
- */
-export async function POST(request: NextRequest) {
-  const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export async function GET() {
+  const user = getSessionUser();
+  if (!user) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
+  const userInfo = await db.getUserInfoV2(user.username);
+  return NextResponse.json({
+    email: (userInfo as any)?.email || '',
+    emailNotifications: (userInfo as any)?.emailNotifications || false,
+  });
+}
+
+export async function POST(req: Request) {
   try {
-    const storage = getStorage();
-    const username = authInfo.username;
-    const body = await request.json();
-    const { email, emailNotifications } = body;
+    const user = getSessionUser();
+    if (!user) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
-    // 验证邮箱格式
-    if (email && typeof email === 'string') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return NextResponse.json(
-          { error: '邮箱格式不正确' },
-          { status: 400 }
-        );
-      }
+    const { email, emailNotifications } = await req.json();
 
-      if (storage.setUserEmail) {
-        await storage.setUserEmail(username, email);
+    // 绑定邮箱
+    if (email) {
+      // 检查是否被占用
+      const existingUser = await db.getUserByEmail(email);
+      if (existingUser && existingUser !== user.username) {
+        return NextResponse.json({ error: '该邮箱已被其他账号绑定' }, { status: 400 });
       }
+      await db.bindEmail(user.username, email);
     }
 
-    // 保存邮件通知偏好
+    // 更新通知设置
     if (typeof emailNotifications === 'boolean') {
-      if (storage.setEmailNotificationPreference) {
-        await storage.setEmailNotificationPreference(username, emailNotifications);
-      }
+      await db.updateUserInfoV2(user.username, { emailNotifications } as any);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: '邮箱设置保存成功',
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('保存用户邮箱设置失败:', error);
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    console.error(error);
+    return NextResponse.json({ error: '保存失败' }, { status: 500 });
   }
 }
