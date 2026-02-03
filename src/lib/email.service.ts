@@ -101,7 +101,7 @@ export class EmailService {
     await this.sendEmail(email, '【MoonTV】验证码', html);
   }
 
-  // ✅✅✅ 补全这个缺失的方法！用于后台测试连接 ✅✅✅
+  // ✅✅✅ 这就是之前报错缺少的方法！现在加上了！✅✅✅
   static async sendTestEmail(config: EmailConfig, to: string, siteName: string): Promise<void> {
     const html = `
       <div style="font-family: sans-serif; padding: 20px; color: #333;">
